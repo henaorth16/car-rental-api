@@ -1,0 +1,12 @@
+node_modules
+.env
+car_rental_backend_spec.txt
+dev.db
+dev.*
+# Build and log files (not needed now , but for future)
+dist
+coverage
+logs
+*.log
+*.tsbuildinfo
+
