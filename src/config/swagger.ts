@@ -26,10 +26,10 @@ const options: swaggerJsdoc.Options = {
     ],
     components: {
       securitySchemes: {
-        bearerAuth: {
-          type: "http",
-          scheme: "bearer",
-          bearerFormat: "JWT",
+        cookieAuth: {
+          type: "apiKey",
+          in: "cookie",
+          name: "better-auth.session_token",
         },
       },
       schemas: {
@@ -57,10 +57,33 @@ const options: swaggerJsdoc.Options = {
             error: { type: "string" },
           },
         },
+        Booking: {
+          type: "object",
+          properties: {
+            id: { type: "string", format: "uuid" },
+            userId: { type: "string" },
+            carId: { type: "string", format: "uuid" },
+            startDate: { type: "string", format: "date-time" },
+            endDate: { type: "string", format: "date-time" },
+            status: { type: "string", enum: ["PENDING", "CONFIRMED", "CANCELLED"] },
+          },
+        },
+        PaymentResponse: {
+          type: "object",
+          properties: {
+            result: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                url: { type: "string" },
+              }
+            }
+          },
+        },
       },
     },
     paths: {
-      "/auth/register": {
+      "/api/auth/sign-up/email": {
         post: {
           tags: ["Auth"],
           summary: "Register a new user",
@@ -81,7 +104,7 @@ const options: swaggerJsdoc.Options = {
           },
         },
       },
-      "/auth/login": {
+      "/api/auth/sign-in/email": {
         post: {
           tags: ["Auth"],
           summary: "Login user",
@@ -116,7 +139,7 @@ const options: swaggerJsdoc.Options = {
         post: {
           tags: ["Cars"],
           summary: "Create a new car (Admin only)",
-          security: [{ bearerAuth: [] }],
+          security: [{ cookieAuth: [] }],
           requestBody: {
             required: true,
             content: {
@@ -147,7 +170,7 @@ const options: swaggerJsdoc.Options = {
         put: {
           tags: ["Cars"],
           summary: "Update car details (Admin only)",
-          security: [{ bearerAuth: [] }],
+          security: [{ cookieAuth: [] }],
           parameters: [
             { name: "id", in: "path", required: true, schema: { type: "string" } },
           ],
@@ -166,7 +189,7 @@ const options: swaggerJsdoc.Options = {
         delete: {
           tags: ["Cars"],
           summary: "Delete car (Admin only)",
-          security: [{ bearerAuth: [] }],
+          security: [{ cookieAuth: [] }],
           parameters: [
             { name: "id", in: "path", required: true, schema: { type: "string" } },
           ],
@@ -180,7 +203,7 @@ const options: swaggerJsdoc.Options = {
         post: {
           tags: ["Bookings"],
           summary: "Create a booking",
-          security: [{ bearerAuth: [] }],
+          security: [{ cookieAuth: [] }],
           requestBody: {
             required: true,
             content: {
@@ -197,8 +220,21 @@ const options: swaggerJsdoc.Options = {
             },
           },
           responses: {
-            201: { description: "Booking created" },
+            201: { 
+              description: "Booking created",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      booking: { $ref: "#/components/schemas/Booking" }
+                    }
+                  }
+                }
+              }
+            },
             400: { description: "Invalid dates" },
+            404: { description: "Car not available" },
             409: { description: "Car already booked" },
           },
         },
@@ -207,9 +243,24 @@ const options: swaggerJsdoc.Options = {
         get: {
           tags: ["Bookings"],
           summary: "Get my bookings",
-          security: [{ bearerAuth: [] }],
+          security: [{ cookieAuth: [] }],
           responses: {
-            200: { description: "List of my bookings" },
+            200: { 
+              description: "List of my bookings",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      bookings: {
+                        type: "array",
+                        items: { $ref: "#/components/schemas/Booking" }
+                      }
+                    }
+                  }
+                }
+              }
+             },
           },
         },
       },
@@ -217,21 +268,35 @@ const options: swaggerJsdoc.Options = {
         delete: {
           tags: ["Bookings"],
           summary: "Cancel booking",
-          security: [{ bearerAuth: [] }],
+          security: [{ cookieAuth: [] }],
           parameters: [
             { name: "id", in: "path", required: true, schema: { type: "string" } },
           ],
           responses: {
-            200: { description: "Booking cancelled" },
+            200: { 
+              description: "Booking cancelled",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      booking: { $ref: "#/components/schemas/Booking" }
+                    }
+                  }
+                }
+              }
+            },
+            400: { description: "Booking already cancelled" },
             403: { description: "Cannot cancel other user's booking" },
+            404: { description: "Booking not found" },
           },
         },
       },
       "/api/payments": {
         post: {
           tags: ["Payments"],
-          summary: "Make a payment for a booking",
-          security: [{ bearerAuth: [] }],
+          summary: "Initiate payment for a booking using Polar checkout",
+          security: [{ cookieAuth: [] }],
           requestBody: {
             required: true,
             content: {
@@ -247,8 +312,17 @@ const options: swaggerJsdoc.Options = {
             },
           },
           responses: {
-            201: { description: "Payment successful" },
+            201: { 
+              description: "Payment initiated and checkout URL generated",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/PaymentResponse" }
+                }
+              }
+            },
             400: { description: "Invalid booking or not pending" },
+            403: { description: "Cannot pay for other user's booking" },
+            404: { description: "Booking not found" },
           },
         },
       },

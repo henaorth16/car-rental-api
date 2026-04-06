@@ -1,25 +1,32 @@
 import { Request, Response } from "express";
-import { success, z } from "zod";
+import { z } from "zod";
 import { prisma } from "../../config/prisma";
 
 const createCarSchema = z.object({
   brand: z.string().min(1),
   model: z.string().min(1),
   type: z.string().min(1),
-  pricePerDay: z.number().positive(),
-  available: z.boolean().optional(),
+  fuelType: z.string().optional(),
+  transmission: z.string().optional(),
+  description: z.string().optional(),
+  seats: z.coerce.number().int().optional(),
+  doors: z.coerce.number().int().optional(),
+  color: z.string().optional(),
+  pricePerDay: z.coerce.number().positive(),
+  available: z.preprocess((val) => val === "true" || val === true, z.boolean().optional()),
 });
 
 const updateCarSchema = createCarSchema.partial();
 
 export const listCars = async (req: Request, res: Response) => {
-  const cars = await prisma.car.findMany();
+  const cars = await prisma.car.findMany({ include: { images: true } });
   res.json({ cars });
 };
 
 export const getCar = async (req: Request, res: Response) => {
   const car = await prisma.car.findUnique({
     where: { id: req.params.id as string },
+    include: { images: true },
   });
   if (!car) {
     return res.status(404).json({ error: "Car not found" });
@@ -30,8 +37,19 @@ export const getCar = async (req: Request, res: Response) => {
 export const createCar = async (req: Request, res: Response) => {
   try {
     const payload = createCarSchema.parse(req.body);
+    const files = req.files as Express.Multer.File[];
 
-    const car = await prisma.car.create({ data: payload });
+    const carData: any = {
+      ...payload,
+    };
+
+    if (files && files.length > 0) {
+      carData.images = {
+        create: files.map((f: Express.Multer.File) => ({ url: f.filename })),
+      };
+    }
+
+    const car = await prisma.car.create({ data: carData, include: { images: true } });
     res.status(201).json({ car });
   } catch (error: any) {
     res.status(400).json({ error: error.message || "Invalid request" });
@@ -41,9 +59,22 @@ export const createCar = async (req: Request, res: Response) => {
 export const updateCar = async (req: Request, res: Response) => {
   try {
     const payload = updateCarSchema.parse(req.body);
+    const files = req.files as Express.Multer.File[];
+
+    const carData: any = {
+      ...payload,
+    };
+
+    if (files && files.length > 0) {
+      carData.images = {
+        create: files.map((f: Express.Multer.File) => ({ url: f.filename })),
+      };
+    }
+
     const car = await prisma.car.update({
       where: { id: req.params.id as string },
-      data: payload,
+      data: carData,
+      include: { images: true },
     });
     res.json({ car });
   } catch (error: any) {
@@ -65,3 +96,4 @@ export const deleteCar = async (req: Request, res: Response) => {
     success: true,
   });
 };
+

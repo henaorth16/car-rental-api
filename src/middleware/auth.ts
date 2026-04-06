@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
+import { fromNodeHeaders } from "better-auth/node";
+import { auth } from "../modules/auth/auth";
 import { prisma } from "../config/prisma";
 
 interface AuthRequest extends Request {
@@ -12,15 +13,16 @@ export const authMiddleware = async (
   next: NextFunction,
 ) => {
   try {
-    const token = req.header("Authorization")?.replace("Bearer ", "");
+    const session = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers)
+    });
 
-    if (!token) {
-      return res.status(401).json({ error: "No token provided" });
+    if (!session || !session.user) {
+      return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
     const user = await prisma.user.findUnique({
-      where: { id: decoded.id },
+      where: { id: session.user.id },
     });
 
     if (!user) {
@@ -30,7 +32,7 @@ export const authMiddleware = async (
     req.user = user;
     next();
   } catch (error) {
-    res.status(401).json({ error: "Invalid token" });
+    res.status(401).json({ error: "Authentication error" });
   }
 };
 

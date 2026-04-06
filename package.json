@@ -5,12 +5,14 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon src/server.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "ts-node test_api.ts && ts-node test_payment_integration.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@polar-sh/better-auth": "^1.8.3",
+    "@polar-sh/sdk": "^0.46.7",
     "@prisma/adapter-better-sqlite3": "^7.5.0",
     "@prisma/client": "^7.5.0",
     "@types/bcrypt": "^6.0.0",
@@ -28,6 +30,7 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "loader": "^2.1.1",
+    "multer": "^2.1.1",
     "node-fetch": "^2.7.0",
     "prisma": "^7.5.0",
     "swagger-jsdoc": "^6.2.8",
@@ -39,6 +42,7 @@
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
+    "@types/multer": "^2.1.0",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
     "nodemon": "^3.1.14"

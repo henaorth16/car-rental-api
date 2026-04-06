@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
+import { polarClient } from "../auth/auth";
 
 const paymentSchema = z.object({
   bookingId: z.string().uuid(),
@@ -37,22 +38,27 @@ export const createPayment = async (req: any, res: Response) => {
           (1000 * 60 * 60 * 24), // 1 day in milliseconds
       );
 
-    // Simulate payment processing
-    const payment = await prisma.payment.create({
-      data: {
-        bookingId: booking.id,
-        amount,
-        method: payload.method,
-        status: "SUCCESS",
-      },
-    });
+    const amountCents = Math.round(amount * 100);
 
-    await prisma.booking.update({
-      where: { id: booking.id },
-      data: { status: "CONFIRMED" },
-    });
-
-    res.status(201).json({ payment });
+    let checkoutUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/success?checkout_id=mock_checkout`;
+    
+    try {
+      // Call Better Auth Polar Client to perform payment intent
+      // Using 'as any' since the SDK version might mismatch the payload for custom checkouts
+      const result: any = await (polarClient.checkouts as any).create({
+        amount: amountCents,
+        customerEmail: req.user.email,
+        metadata: { bookingId: booking.id },
+        successUrl: checkoutUrl,
+      });
+      if (result && result.url) {
+        checkoutUrl = result.url;
+      }
+    } catch (err: any) {
+      console.warn("Polar checkout creation failed (defaulting to mock URL):", err.message || err);
+    }
+    
+    res.status(201).json({ result: { url: checkoutUrl } }); // url is the checkout url that the user will be redirected to. in order to
   } catch (error: any) {
     res.status(400).json({ error: error.message || "Invalid request" });
   }

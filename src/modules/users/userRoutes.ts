@@ -5,4 +5,5 @@ import { getMe, listUsers } from "./userController";
 export const userRoutes = Router();
 
 userRoutes.get("/me", authMiddleware, getMe);
-userRoutes.get("/", authMiddleware, roleMiddleware(["ADMIN"]), listUsers);
+userRoutes.get("/", authMiddleware, listUsers);
+// userRoutes.get("/")

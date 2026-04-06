@@ -10,26 +10,47 @@ datasource db {
 }
 
 model User {
-    id        String    @id @default(uuid())
-    name      String
-    email     String    @unique
-    password  String
-    role      Role      @default(USER)
-    bookings  Booking[]
-    createdAt DateTime  @default(now())
-    updatedAt DateTime  @updatedAt
+    id            String    @id @default(uuid())
+    name          String
+    email         String    @unique
+    password      String?
+    emailVerified Boolean   @default(false)
+    image         String?
+    phoneNumber   String?
+    address       String?
+    role          Role      @default(USER)
+    bookings      Booking[]
+    sessions      Session[]
+    accounts      Account[]
+    createdAt     DateTime  @default(now())
+    updatedAt     DateTime  @updatedAt
 }
 
 model Car {
-    id          String    @id @default(uuid())
-    brand       String
-    model       String
-    type        String
-    pricePerDay Float
-    available   Boolean   @default(true)
-    bookings    Booking[]
-    createdAt   DateTime  @default(now())
-    updatedAt   DateTime  @updatedAt
+    id           String        @id @default(uuid())
+    brand        String
+    model        String
+    type         String
+    fuelType     fuelType?
+    transmission transmission?
+    description  String?
+    seats        Int?
+    doors        Int?
+    color        String?
+    images       CarImage[]
+    pricePerDay  Float
+    available    Boolean       @default(true)
+    bookings     Booking[]
+    createdAt    DateTime      @default(now())
+    updatedAt    DateTime      @updatedAt
+}
+
+model CarImage {
+    id        String   @id @default(uuid())
+    url       String
+    carId     String
+    car       Car      @relation(fields: [carId], references: [id], onDelete: Cascade)
+    createdAt DateTime @default(now())
 }
 
 model Booking {
@@ -64,6 +85,18 @@ enum Role {
     ADMIN
 }
 
+enum transmission {
+    MANUAL
+    AUTOMATIC
+}
+
+enum fuelType {
+    PETROL
+    DIESEL
+    ELECTRIC
+    HYBRID
+}
+
 enum BookingStatus {
     PENDING
     CONFIRMED
@@ -74,4 +107,48 @@ enum PaymentStatus {
     PENDING
     SUCCESS
     FAILED
+}
+
+model Session {
+    id        String   @id
+    expiresAt DateTime
+    token     String   @unique
+    createdAt DateTime
+    updatedAt DateTime
+    ipAddress String?
+    userAgent String?
+    userId    String
+    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@map("session")
+}
+
+model Account {
+    id                    String    @id
+    accountId             String
+    providerId            String
+    userId                String
+    user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+    accessToken           String?
+    refreshToken          String?
+    idToken               String?
+    accessTokenExpiresAt  DateTime?
+    refreshTokenExpiresAt DateTime?
+    scope                 String?
+    password              String?
+    createdAt             DateTime
+    updatedAt             DateTime
+
+    @@map("account")
+}
+
+model Verification {
+    id         String    @id
+    identifier String
+    value      String
+    expiresAt  DateTime
+    createdAt  DateTime?
+    updatedAt  DateTime?
+
+    @@map("verification")
 }

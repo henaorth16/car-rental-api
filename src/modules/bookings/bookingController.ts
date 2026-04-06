@@ -96,3 +96,9 @@ export const cancelBooking = async (req: any, res: Response) => {
 
   res.json({ booking: updated });
 };
+
+export async function editBookings(req:Request, res:Response) {
+  const {data} =await req.body;
+
+  console.log(data)
+}
