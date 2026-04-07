@@ -10,6 +10,7 @@ import { paymentRoutes } from "./modules/payments/paymentRoutes";
 import { errorHandler } from "./middleware/errorHandler";
 import { rateLimiter } from "./middleware/rateLimiter";
 import { setupSwagger } from "./config/swagger";
+import path from "path";
 
 const app = express();
 
@@ -23,6 +24,10 @@ app.use(
     origin: process.env.FRONTEND_URL, // your frontend
     credentials: true,
   }),
+);
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "../uploads"))
 );
 // Rate limiting
 app.use(rateLimiter);
