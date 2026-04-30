@@ -19,6 +19,8 @@ model User {
     phoneNumber   String?
     address       String?
     role          Role      @default(USER)
+    ownedCars     Car[]
+    agentProfile  AgentProfile?
     bookings      Booking[]
     sessions      Session[]
     accounts      Account[]
@@ -38,6 +40,8 @@ model Car {
     doors        Int?
     color        String?
     images       CarImage[]
+    ownerId      String?
+    owner        User?         @relation(fields: [ownerId], references: [id], onDelete: SetNull)
     pricePerDay  Float
     available    Boolean       @default(true)
     bookings     Booking[]
@@ -82,7 +86,20 @@ model Payment {
 
 enum Role {
     USER
+    AGENT
     ADMIN
+}
+
+model AgentProfile {
+    id            String   @id @default(uuid())
+    userId        String   @unique
+    businessName  String
+    businessPhone String?
+    officeAddress String?
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 enum transmission {

@@ -1,14 +1,28 @@
-import { betterAuth } from "better-auth";
+import { betterAuth, BetterAuthOptions } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "../../config/prisma";
 import { polar, checkout, webhooks } from "@polar-sh/better-auth";
 import { Polar } from "@polar-sh/sdk";
+import { customSession } from "better-auth/plugins";
+
+const findUserRoles = async (userId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+
+  if (!user) {
+    return [];
+  }
+
+  return [user.role];
+};
 
 export const polarClient = new Polar({
-  accessToken: process.env.POLAR_ACCESS_TOKEN || "sandbox",
+  accessToken: process.env.POLAR_ACCESS_TOKEN,
   server: "sandbox",
 });
-
+//@ts-ignore
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "sqlite",
@@ -21,6 +35,25 @@ export const auth = betterAuth({
     // Add social providers if needed
   },
   plugins: [
+    customSession(async ({ user, session }) => {
+      const userId = session.userId ?? user?.id;
+      const roles = userId ? await findUserRoles(userId) : [];
+      const role = roles[0] ?? "USER";
+
+      return {
+        user: {
+          ...user,
+          role,
+        },
+        session: {
+          ...session,
+          custom: {
+            role,
+            roles,
+          },
+        },
+      };
+    }),
     polar({
       client: polarClient,
       createCustomersOnSignUp: true,

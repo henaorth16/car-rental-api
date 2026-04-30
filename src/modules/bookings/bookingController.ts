@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
+import { Role } from "@prisma/client";
 
 const bookingSchema = z.object({
   carId: z.string().uuid(),
@@ -61,13 +62,35 @@ export const createBooking = async (req: any, res: Response) => {
   }
 };
 
-export const getMyBookings = async (req: any, res: Response) => {
-  const bookings = await prisma.booking.findMany({
-    where: { userId: req.user.id },
-    include: { car: true },
-  });
+const paginationQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(10),
+});
 
-  res.json({ bookings });
+export const getMyBookings = async (req: any, res: Response) => {
+  const query = paginationQuerySchema.parse(req.query);
+  const { page, limit } = query;
+
+  const [bookings, total] = await Promise.all([
+    prisma.booking.findMany({
+      where: { userId: req.user.id },
+      include: { car: true },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.booking.count({ where: { userId: req.user.id } }),
+  ]);
+
+  res.json({
+    bookings,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  });
 };
 
 export const cancelBooking = async (req: any, res: Response) => {
@@ -102,3 +125,44 @@ export async function editBookings(req:Request, res:Response) {
 
   console.log(data)
 }
+
+export const getAgentBookings = async (req: any, res: Response) => {
+  const query = paginationQuerySchema.parse(req.query);
+  const { page, limit } = query;
+
+  const where =
+    req.user.role === Role.ADMIN
+      ? {}
+      : {
+          car: {
+            ownerId: req.user.id,
+          },
+        };
+
+  const [bookings, total] = await Promise.all([
+    prisma.booking.findMany({
+      where,
+      include: {
+        car: true,
+        user: {
+          select: { id: true, name: true, email: true },
+        },
+        payment: true,
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.booking.count({ where }),
+  ]);
+
+  res.json({
+    bookings,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  });
+};

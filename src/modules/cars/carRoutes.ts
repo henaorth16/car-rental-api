@@ -9,6 +9,7 @@ import {
   createCar,
   updateCar,
   deleteCar,
+  listMyCars,
 } from "./carController";
 
 const uploadDir = path.join(process.cwd(), "uploads/cars");
@@ -31,8 +32,9 @@ const upload = multer({ storage: storage });
 export const carRoutes = Router();
 
 carRoutes.get("/", listCars);
+carRoutes.get("/my", authMiddleware, roleMiddleware(["AGENT", "ADMIN"]), listMyCars);
 carRoutes.get("/:id", getCar);
-carRoutes.post("/", authMiddleware, roleMiddleware(["ADMIN"]), upload.array("images", 10), createCar);
-carRoutes.put("/:id", authMiddleware, roleMiddleware(["ADMIN"]), upload.array("images", 10), updateCar);
-carRoutes.delete("/:id", authMiddleware, roleMiddleware(["ADMIN"]), deleteCar);
+carRoutes.post("/", authMiddleware, roleMiddleware(["ADMIN", "AGENT"]), upload.array("images", 10), createCar);
+carRoutes.put("/:id", authMiddleware, roleMiddleware(["ADMIN", "AGENT"]), upload.array("images", 10), updateCar);
+carRoutes.delete("/:id", authMiddleware, roleMiddleware(["ADMIN", "AGENT"]), deleteCar);
 

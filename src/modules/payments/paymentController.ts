@@ -2,10 +2,16 @@ import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import { polarClient } from "../auth/auth";
+import { Role } from "@prisma/client";
 
 const paymentSchema = z.object({
   bookingId: z.string().uuid(),
   method: z.string().min(1),
+});
+
+const paginationQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(10),
 });
 
 export const createPayment = async (req: any, res: Response) => {
@@ -40,7 +46,7 @@ export const createPayment = async (req: any, res: Response) => {
 
     const amountCents = Math.round(amount * 100);
 
-    let checkoutUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/success?checkout_id=mock_checkout`;
+    let checkoutUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/success`;
     
     try {
       // Call Better Auth Polar Client to perform payment intent
@@ -62,4 +68,56 @@ export const createPayment = async (req: any, res: Response) => {
   } catch (error: any) {
     res.status(400).json({ error: error.message || "Invalid request" });
   }
+};
+
+export const listPayments = async (req: any, res: Response) => {
+  const query = paginationQuerySchema.parse(req.query);
+  const { page, limit } = query;
+
+  const where =
+    req.user.role === Role.ADMIN
+      ? {}
+      : req.user.role === Role.AGENT
+        ? {
+            booking: {
+              car: {
+                ownerId: req.user.id,
+              },
+            },
+          }
+        : {
+            booking: {
+              userId: req.user.id,
+            },
+          };
+
+  const [payments, total] = await Promise.all([
+    prisma.payment.findMany({
+      where,
+      include: {
+        booking: {
+          include: {
+            car: true,
+            user: {
+              select: { id: true, name: true, email: true },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.payment.count({ where }),
+  ]);
+
+  res.json({
+    payments,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  });
 };

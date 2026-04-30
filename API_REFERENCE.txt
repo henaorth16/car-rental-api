@@ -1,0 +1,154 @@
+Car Rental System API Reference
+Version: 1.0.0
+
+Overview
+- Base URL (local): http://localhost:5000
+- API prefix: /api
+- Auth provider: Better Auth (session cookie based)
+- Swagger UI: /api-docs
+
+Authentication
+- Register: POST /api/auth/sign-up/email
+- Login: POST /api/auth/sign-in/email
+- Session is managed using Better Auth cookies.
+- Protected endpoints require a valid session cookie.
+
+Roles and Permissions
+- USER:
+  - Browse fleet (public endpoint)
+  - Create and manage own bookings
+  - Pay own bookings
+  - View own payments
+- AGENT:
+  - All USER capabilities
+  - Register as agent profile
+  - Add and manage own cars
+  - View bookings for own cars
+  - View payments for own cars
+  - View users who booked own cars
+- ADMIN:
+  - Full access to all cars, users, bookings, and payments
+
+Fleet and Cars
+1) GET /api/cars
+   Purpose:
+   - Public/paginated fleet listing with filtering to reduce payload size.
+
+   Query Params:
+   - page (default 1)
+   - limit (default 10, max 100)
+   - brand, model, type
+   - fuelType: PETROL | DIESEL | ELECTRIC | HYBRID
+   - transmission: MANUAL | AUTOMATIC
+   - minPrice, maxPrice
+   - seats
+   - available (default true if omitted)
+   - search (brand/model/type/description)
+   - sortBy: pricePerDay | createdAt (default createdAt)
+   - sortOrder: asc | desc (default desc)
+
+   Response:
+   - { cars: [...], pagination: { page, limit, total, totalPages } }
+
+2) GET /api/cars/:id
+   Purpose:
+   - Get one car by ID.
+
+3) GET /api/cars/my   [AGENT, ADMIN]
+   Purpose:
+   - List cars owned by the current account (agent ownership scoped).
+   - Supports page/limit/sortBy/sortOrder.
+
+4) POST /api/cars   [AGENT, ADMIN]
+   Content-Type:
+   - multipart/form-data
+   Fields:
+   - brand, model, type, pricePerDay (required)
+   - fuelType, transmission, description, seats, doors, color, available (optional)
+   - ownerId (optional; effective for ADMIN, ignored for AGENT)
+   - images[] (optional, up to 10 files)
+
+5) PUT /api/cars/:id   [AGENT, ADMIN]
+   Purpose:
+   - Update car data.
+   - AGENT can only update own cars.
+
+6) DELETE /api/cars/:id   [AGENT, ADMIN]
+   Purpose:
+   - Delete a car.
+   - AGENT can only delete own cars.
+
+Bookings
+1) POST /api/bookings   [Authenticated]
+   Purpose:
+   - Create booking for a car.
+   - Validates date range and overlap against CONFIRMED bookings.
+
+2) GET /api/bookings/my   [Authenticated]
+   Purpose:
+   - Get current user's bookings with pagination.
+   Query Params:
+   - page, limit
+
+3) GET /api/bookings/agent   [AGENT, ADMIN]
+   Purpose:
+   - Get bookings for cars owned by current agent.
+   - ADMIN gets all bookings.
+   Query Params:
+   - page, limit
+
+4) DELETE /api/bookings/:id   [Authenticated]
+   Purpose:
+   - Cancel own booking.
+
+Payments
+1) POST /api/payments   [Authenticated]
+   Purpose:
+   - Initiate payment checkout URL for a pending booking.
+   Body:
+   - bookingId (uuid)
+   - method (string)
+   Response:
+   - { result: { url: "..." } }
+
+2) GET /api/payments   [Authenticated]
+   Purpose:
+   - Paginated payment listing with role scope:
+     - USER: own booking payments
+     - AGENT: payments from bookings of own cars
+     - ADMIN: all payments
+   Query Params:
+   - page, limit
+
+Users and Agent Registration
+1) GET /api/users/me   [Authenticated]
+   Purpose:
+   - Get current user profile.
+
+2) POST /api/users/register-agent   [Authenticated]
+   Purpose:
+   - Promote current user to AGENT and upsert agent profile.
+   Body:
+   - businessName (required)
+   - businessPhone (optional)
+   - officeAddress (optional)
+
+3) GET /api/users   [AGENT, ADMIN]
+   Purpose:
+   - ADMIN: list all users.
+   - AGENT: list users tied to bookings on the agent's cars.
+
+Standard Response Patterns
+- Success responses are JSON.
+- Validation/permission errors typically return:
+  - 400 Bad Request
+  - 401 Unauthorized
+  - 403 Forbidden
+  - 404 Not Found
+  - 409 Conflict (overlap booking conflict)
+
+Integration Notes
+- For browser clients, enable cookies and credentials in requests.
+- For multipart endpoints, send files as form-data field name: images.
+- For pagination, always use sensible limit values (10-50) for better performance.
+- To confirm implementation details interactively, open Swagger UI at /api-docs.

@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { authMiddleware } from "../../middleware/auth";
-import { createPayment } from "./paymentController";
+import { createPayment, listPayments } from "./paymentController";
 
 export const paymentRoutes = Router();
 
 paymentRoutes.post("/", authMiddleware, createPayment);
+paymentRoutes.get("/", authMiddleware, listPayments);

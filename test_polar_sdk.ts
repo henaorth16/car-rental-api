@@ -14,10 +14,8 @@ async function test() {
     });
     console.log("Product:", product.id);
 
-    const priceId = product.prices[0].id;
-
     const checkout = await polarClient.checkouts.create({
-      productPriceId: priceId,
+      products: [product.id],
       customerEmail: "user@example.com",
       successUrl: "http://localhost/success",
     });

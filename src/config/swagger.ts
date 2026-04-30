@@ -8,21 +8,14 @@ const options: swaggerJsdoc.Options = {
     info: {
       title: "Car Rental System API",
       version: "1.0.0",
-      description: "API documentation for the Car Rental System",
+      description:
+        "API documentation for the Car Rental System with Better Auth, agent fleet management, booking, and payments.",
     },
     servers: [
       {
-        url: "/api",
-        description: "API Endpoints (/api)",
-      },
-      {
-        url: "/auth",
-        description: "Auth Endpoints (/auth)",
-      },
-      {
         url: "/",
-        description: "Root",
-      }
+        description: "Base server",
+      },
     ],
     components: {
       securitySchemes: {
@@ -33,22 +26,13 @@ const options: swaggerJsdoc.Options = {
         },
       },
       schemas: {
-        User: {
+        Pagination: {
           type: "object",
           properties: {
-            name: { type: "string" },
-            email: { type: "string" },
-            password: { type: "string" },
-          },
-        },
-        Car: {
-          type: "object",
-          properties: {
-            brand: { type: "string" },
-            model: { type: "string" },
-            type: { type: "string" },
-            pricePerDay: { type: "number" },
-            available: { type: "boolean" },
+            page: { type: "integer", example: 1 },
+            limit: { type: "integer", example: 10 },
+            total: { type: "integer", example: 35 },
+            totalPages: { type: "integer", example: 4 },
           },
         },
         Error: {
@@ -57,15 +41,82 @@ const options: swaggerJsdoc.Options = {
             error: { type: "string" },
           },
         },
+        User: {
+          type: "object",
+          properties: {
+            id: { type: "string", format: "uuid" },
+            name: { type: "string" },
+            email: { type: "string", format: "email" },
+            role: { type: "string", enum: ["USER", "AGENT", "ADMIN"] },
+            createdAt: { type: "string", format: "date-time" },
+          },
+        },
+        AgentProfile: {
+          type: "object",
+          properties: {
+            id: { type: "string", format: "uuid" },
+            userId: { type: "string", format: "uuid" },
+            businessName: { type: "string" },
+            businessPhone: { type: "string", nullable: true },
+            officeAddress: { type: "string", nullable: true },
+          },
+        },
+        Car: {
+          type: "object",
+          properties: {
+            id: { type: "string", format: "uuid" },
+            brand: { type: "string" },
+            model: { type: "string" },
+            type: { type: "string" },
+            fuelType: {
+              type: "string",
+              nullable: true,
+              enum: ["PETROL", "DIESEL", "ELECTRIC", "HYBRID"],
+            },
+            transmission: {
+              type: "string",
+              nullable: true,
+              enum: ["MANUAL", "AUTOMATIC"],
+            },
+            description: { type: "string", nullable: true },
+            seats: { type: "integer", nullable: true },
+            doors: { type: "integer", nullable: true },
+            color: { type: "string", nullable: true },
+            ownerId: { type: "string", format: "uuid", nullable: true },
+            pricePerDay: { type: "number" },
+            available: { type: "boolean" },
+            images: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string", format: "uuid" },
+                  url: { type: "string" },
+                },
+              },
+            },
+          },
+        },
         Booking: {
           type: "object",
           properties: {
             id: { type: "string", format: "uuid" },
-            userId: { type: "string" },
+            userId: { type: "string", format: "uuid" },
             carId: { type: "string", format: "uuid" },
             startDate: { type: "string", format: "date-time" },
             endDate: { type: "string", format: "date-time" },
             status: { type: "string", enum: ["PENDING", "CONFIRMED", "CANCELLED"] },
+          },
+        },
+        Payment: {
+          type: "object",
+          properties: {
+            id: { type: "string", format: "uuid" },
+            bookingId: { type: "string", format: "uuid" },
+            amount: { type: "number" },
+            status: { type: "string", enum: ["PENDING", "SUCCESS", "FAILED"] },
+            method: { type: "string" },
+            createdAt: { type: "string", format: "date-time" },
           },
         },
         PaymentResponse: {
@@ -92,7 +143,13 @@ const options: swaggerJsdoc.Options = {
             content: {
               "application/json": {
                 schema: {
-                  $ref: "#/components/schemas/User",
+                  type: "object",
+                  required: ["name", "email", "password"],
+                  properties: {
+                    name: { type: "string" },
+                    email: { type: "string", format: "email" },
+                    password: { type: "string", minLength: 8 },
+                  },
                 },
               },
             },
@@ -131,25 +188,110 @@ const options: swaggerJsdoc.Options = {
       "/api/cars": {
         get: {
           tags: ["Cars"],
-          summary: "Get all cars",
+          summary: "Get fleet with filters and pagination",
+          parameters: [
+            { name: "page", in: "query", schema: { type: "integer", default: 1 } },
+            { name: "limit", in: "query", schema: { type: "integer", default: 10, maximum: 100 } },
+            { name: "brand", in: "query", schema: { type: "string" } },
+            { name: "model", in: "query", schema: { type: "string" } },
+            { name: "type", in: "query", schema: { type: "string" } },
+            { name: "fuelType", in: "query", schema: { type: "string", enum: ["PETROL", "DIESEL", "ELECTRIC", "HYBRID"] } },
+            { name: "transmission", in: "query", schema: { type: "string", enum: ["MANUAL", "AUTOMATIC"] } },
+            { name: "minPrice", in: "query", schema: { type: "number" } },
+            { name: "maxPrice", in: "query", schema: { type: "number" } },
+            { name: "seats", in: "query", schema: { type: "integer" } },
+            { name: "available", in: "query", schema: { type: "boolean" } },
+            { name: "search", in: "query", schema: { type: "string" } },
+            { name: "sortBy", in: "query", schema: { type: "string", enum: ["pricePerDay", "createdAt"], default: "createdAt" } },
+            { name: "sortOrder", in: "query", schema: { type: "string", enum: ["asc", "desc"], default: "desc" } },
+          ],
           responses: {
-            200: { description: "List of cars" },
+            200: {
+              description: "Paginated list of cars",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      cars: { type: "array", items: { $ref: "#/components/schemas/Car" } },
+                      pagination: { $ref: "#/components/schemas/Pagination" },
+                    },
+                  },
+                },
+              },
+            },
           },
         },
         post: {
           tags: ["Cars"],
-          summary: "Create a new car (Admin only)",
+          summary: "Create a car (Agent/Admin)",
           security: [{ cookieAuth: [] }],
           requestBody: {
             required: true,
             content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/Car" },
+              "multipart/form-data": {
+                schema: {
+                  type: "object",
+                  required: ["brand", "model", "type", "pricePerDay"],
+                  properties: {
+                    brand: { type: "string" },
+                    model: { type: "string" },
+                    type: { type: "string" },
+                    fuelType: { type: "string", enum: ["PETROL", "DIESEL", "ELECTRIC", "HYBRID"] },
+                    transmission: { type: "string", enum: ["MANUAL", "AUTOMATIC"] },
+                    description: { type: "string" },
+                    seats: { type: "integer" },
+                    doors: { type: "integer" },
+                    color: { type: "string" },
+                    pricePerDay: { type: "number" },
+                    available: { type: "boolean" },
+                    ownerId: {
+                      type: "string",
+                      format: "uuid",
+                      description: "Optional for admin. Ignored for agents (auto set to current agent).",
+                    },
+                    images: {
+                      type: "array",
+                      items: { type: "string", format: "binary" },
+                    },
+                  },
+                },
               },
             },
           },
           responses: {
             201: { description: "Car created" },
+            401: { description: "Unauthorized" },
+            403: { description: "Forbidden" },
+          },
+        },
+      },
+      "/api/cars/my": {
+        get: {
+          tags: ["Cars"],
+          summary: "Get cars owned by current agent/admin",
+          security: [{ cookieAuth: [] }],
+          parameters: [
+            { name: "page", in: "query", schema: { type: "integer", default: 1 } },
+            { name: "limit", in: "query", schema: { type: "integer", default: 10, maximum: 100 } },
+            { name: "sortBy", in: "query", schema: { type: "string", enum: ["pricePerDay", "createdAt"], default: "createdAt" } },
+            { name: "sortOrder", in: "query", schema: { type: "string", enum: ["asc", "desc"], default: "desc" } },
+          ],
+          responses: {
+            200: {
+              description: "Paginated list of owned cars",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      cars: { type: "array", items: { $ref: "#/components/schemas/Car" } },
+                      pagination: { $ref: "#/components/schemas/Pagination" },
+                    },
+                  },
+                },
+              },
+            },
             401: { description: "Unauthorized" },
             403: { description: "Forbidden" },
           },
@@ -169,15 +311,35 @@ const options: swaggerJsdoc.Options = {
         },
         put: {
           tags: ["Cars"],
-          summary: "Update car details (Admin only)",
+          summary: "Update car details (Agent/Admin)",
           security: [{ cookieAuth: [] }],
           parameters: [
             { name: "id", in: "path", required: true, schema: { type: "string" } },
           ],
           requestBody: {
             content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/Car" },
+              "multipart/form-data": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    brand: { type: "string" },
+                    model: { type: "string" },
+                    type: { type: "string" },
+                    fuelType: { type: "string", enum: ["PETROL", "DIESEL", "ELECTRIC", "HYBRID"] },
+                    transmission: { type: "string", enum: ["MANUAL", "AUTOMATIC"] },
+                    description: { type: "string" },
+                    seats: { type: "integer" },
+                    doors: { type: "integer" },
+                    color: { type: "string" },
+                    pricePerDay: { type: "number" },
+                    available: { type: "boolean" },
+                    ownerId: { type: "string", format: "uuid" },
+                    images: {
+                      type: "array",
+                      items: { type: "string", format: "binary" },
+                    },
+                  },
+                },
               },
             },
           },
@@ -188,7 +350,7 @@ const options: swaggerJsdoc.Options = {
         },
         delete: {
           tags: ["Cars"],
-          summary: "Delete car (Admin only)",
+          summary: "Delete car (Agent/Admin)",
           security: [{ cookieAuth: [] }],
           parameters: [
             { name: "id", in: "path", required: true, schema: { type: "string" } },
@@ -242,8 +404,12 @@ const options: swaggerJsdoc.Options = {
       "/api/bookings/my": {
         get: {
           tags: ["Bookings"],
-          summary: "Get my bookings",
+          summary: "Get my bookings (paginated)",
           security: [{ cookieAuth: [] }],
+          parameters: [
+            { name: "page", in: "query", schema: { type: "integer", default: 1 } },
+            { name: "limit", in: "query", schema: { type: "integer", default: 10, maximum: 100 } },
+          ],
           responses: {
             200: { 
               description: "List of my bookings",
@@ -255,12 +421,45 @@ const options: swaggerJsdoc.Options = {
                       bookings: {
                         type: "array",
                         items: { $ref: "#/components/schemas/Booking" }
-                      }
+                      },
+                      pagination: { $ref: "#/components/schemas/Pagination" },
                     }
                   }
                 }
               }
              },
+          },
+        },
+      },
+      "/api/bookings/agent": {
+        get: {
+          tags: ["Bookings"],
+          summary: "Get bookings for my cars (Agent/Admin)",
+          security: [{ cookieAuth: [] }],
+          parameters: [
+            { name: "page", in: "query", schema: { type: "integer", default: 1 } },
+            { name: "limit", in: "query", schema: { type: "integer", default: 10, maximum: 100 } },
+          ],
+          responses: {
+            200: {
+              description: "Paginated list of bookings for owned cars",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      bookings: {
+                        type: "array",
+                        items: { $ref: "#/components/schemas/Booking" },
+                      },
+                      pagination: { $ref: "#/components/schemas/Pagination" },
+                    },
+                  },
+                },
+              },
+            },
+            401: { description: "Unauthorized" },
+            403: { description: "Forbidden" },
           },
         },
       },
@@ -293,6 +492,32 @@ const options: swaggerJsdoc.Options = {
         },
       },
       "/api/payments": {
+        get: {
+          tags: ["Payments"],
+          summary: "List payments (role-scoped, paginated)",
+          security: [{ cookieAuth: [] }],
+          parameters: [
+            { name: "page", in: "query", schema: { type: "integer", default: 1 } },
+            { name: "limit", in: "query", schema: { type: "integer", default: 10, maximum: 100 } },
+          ],
+          responses: {
+            200: {
+              description: "Paginated payments list",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      payments: { type: "array", items: { $ref: "#/components/schemas/Payment" } },
+                      pagination: { $ref: "#/components/schemas/Pagination" },
+                    },
+                  },
+                },
+              },
+            },
+            401: { description: "Unauthorized" },
+          },
+        },
         post: {
           tags: ["Payments"],
           summary: "Initiate payment for a booking using Polar checkout",
@@ -323,6 +548,80 @@ const options: swaggerJsdoc.Options = {
             400: { description: "Invalid booking or not pending" },
             403: { description: "Cannot pay for other user's booking" },
             404: { description: "Booking not found" },
+          },
+        },
+      },
+      "/api/users/me": {
+        get: {
+          tags: ["Users"],
+          summary: "Get current authenticated user",
+          security: [{ cookieAuth: [] }],
+          responses: {
+            200: {
+              description: "Current user",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      user: { $ref: "#/components/schemas/User" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/users/register-agent": {
+        post: {
+          tags: ["Users"],
+          summary: "Register the current user as an agent",
+          security: [{ cookieAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["businessName"],
+                  properties: {
+                    businessName: { type: "string" },
+                    businessPhone: { type: "string" },
+                    officeAddress: { type: "string" },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: "Agent registration successful" },
+            400: { description: "Invalid request" },
+            401: { description: "Unauthorized" },
+          },
+        },
+      },
+      "/api/users": {
+        get: {
+          tags: ["Users"],
+          summary: "List users (Admin all users; Agent booking-related users)",
+          security: [{ cookieAuth: [] }],
+          responses: {
+            200: {
+              description: "Users list",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      users: { type: "array", items: { $ref: "#/components/schemas/User" } },
+                    },
+                  },
+                },
+              },
+            },
+            401: { description: "Unauthorized" },
+            403: { description: "Forbidden" },
           },
         },
       },
