@@ -30,7 +30,11 @@ export const auth: ReturnType<typeof betterAuth> = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
-  trustedOrigins: ["http://localhost:3000"],
+  trustedOrigins: [
+    "http://localhost:3000",
+    process.env.FRONTEND_URL || "",
+    "https://*.vercel.app",
+  ].filter(Boolean),
   socialProviders: {
     // Add social providers if needed
   },

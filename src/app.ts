@@ -21,13 +21,23 @@ setupSwagger(app);
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL, // your frontend
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (
+        origin === process.env.FRONTEND_URL ||
+        origin === "http://localhost:3000" ||
+        origin.endsWith(".vercel.app")
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     credentials: true,
   }),
 );
 app.use(
   "/uploads",
-  express.static(path.join(__dirname, "../uploads"))
+  express.static(path.join(process.cwd(), "uploads"))
 );
 // Rate limiting
 app.use(rateLimiter);

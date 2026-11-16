@@ -1,5 +1,21 @@
 import winston from "winston";
 
+const transports: winston.transport[] = [
+  new winston.transports.Console({
+    format: winston.format.combine(
+      winston.format.colorize(),
+      winston.format.simple(),
+    ),
+  }),
+];
+
+if (!process.env.VERCEL && process.env.NODE_ENV !== "production") {
+  transports.push(
+    new winston.transports.File({ filename: "logs/error.log", level: "error" }),
+    new winston.transports.File({ filename: "logs/combined.log" }),
+  );
+}
+
 export const logger = winston.createLogger({
   level: "info",
   format: winston.format.combine(
@@ -8,14 +24,5 @@ export const logger = winston.createLogger({
     winston.format.json(),
   ),
   defaultMeta: { service: "car-rental-api" },
-  transports: [
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple(),
-      ),
-    }),
-    new winston.transports.File({ filename: "logs/error.log", level: "error" }),
-    new winston.transports.File({ filename: "logs/combined.log" }),
-  ],
+  transports,
 });

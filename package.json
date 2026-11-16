@@ -2,8 +2,12 @@
   "name": "car_rent_app",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "api/index.js",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
+    "build": "prisma generate && esbuild src/api.ts --bundle --platform=node --target=node22 --format=esm --minify --outfile=api/index.js --external:better-sqlite3 --external:bcrypt --external:@prisma/client --external:express --external:cors --external:helmet --external:winston --external:swagger-ui-express --external:swagger-jsdoc --external:zod --external:dotenv --external:@polar-sh/sdk --external:multer --external:jsonwebtoken --external:express-rate-limit",
     "dev": "nodemon src/server.ts",
     "seed": "ts-node prisma/seed.ts",
     "test": "ts-node test_api.ts && ts-node test_payment_integration.ts"
@@ -46,6 +50,8 @@
     "@types/multer": "^2.1.0",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
+    "esbuild": "^0.28.2",
     "nodemon": "^3.1.14"
-  }
+  },
+  "type": "module"
 }
