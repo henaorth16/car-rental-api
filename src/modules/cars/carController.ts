@@ -15,7 +15,10 @@ const createCarSchema = z.object({
   color: z.string().optional(),
   pricePerDay: z.coerce.number().positive(),
   ownerId: z.string().uuid().optional(),
-  available: z.preprocess((val) => val === "true" || val === true, z.boolean().optional()),
+  available: z.preprocess(
+    (val) => (val === undefined ? true : val === "true" || val === true),
+    z.boolean().default(true)
+  ),
 });
 
 const updateCarSchema = createCarSchema.partial();
@@ -45,9 +48,9 @@ export const listCars = async (req: Request, res: Response) => {
   const { page, limit } = query;
 
   const where: any = {
-    ...(query.brand ? { brand: { contains: query.brand, mode: "insensitive" } } : {}),
-    ...(query.model ? { model: { contains: query.model, mode: "insensitive" } } : {}),
-    ...(query.type ? { type: { contains: query.type, mode: "insensitive" } } : {}),
+    ...(query.brand ? { brand: { contains: query.brand } } : {}),
+    ...(query.model ? { model: { contains: query.model } } : {}),
+    ...(query.type ? { type: { contains: query.type } } : {}),
     ...(query.fuelType ? { fuelType: query.fuelType } : {}),
     ...(query.transmission ? { transmission: query.transmission } : {}),
     ...(query.seats ? { seats: query.seats } : {}),
@@ -64,10 +67,10 @@ export const listCars = async (req: Request, res: Response) => {
 
   if (query.search) {
     where.OR = [
-      { brand: { contains: query.search, mode: "insensitive" } },
-      { model: { contains: query.search, mode: "insensitive" } },
-      { type: { contains: query.search, mode: "insensitive" } },
-      { description: { contains: query.search, mode: "insensitive" } },
+      { brand: { contains: query.search } },
+      { model: { contains: query.search } },
+      { type: { contains: query.search } },
+      { description: { contains: query.search } },
     ];
   }
 
