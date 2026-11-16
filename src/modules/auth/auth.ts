@@ -23,7 +23,7 @@ export const polarClient = new Polar({
   server: "sandbox",
 });
 //@ts-ignore
-export const auth = betterAuth({
+export const auth: ReturnType<typeof betterAuth> = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "sqlite",
   }),
