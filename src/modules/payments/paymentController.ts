@@ -37,16 +37,18 @@ export const createPayment = async (req: any, res: Response) => {
       return res.status(400).json({ error: "Booking is not pending" });
     }
 
-    const amount =
-      booking.car.pricePerDay *
+    const days = Math.max(
+      1,
       Math.ceil(
         (booking.endDate.getTime() - booking.startDate.getTime()) /
           (1000 * 60 * 60 * 24), // 1 day in milliseconds
-      );
+      ),
+    );
+    const amount = booking.car.pricePerDay * days;
 
     const amountCents = Math.round(amount * 100);
 
-    let checkoutUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/success`;
+    let checkoutUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/success?bookingId=${booking.id}`;
     
     try {
       // Call Better Auth Polar Client to perform payment intent
@@ -64,7 +66,7 @@ export const createPayment = async (req: any, res: Response) => {
       console.warn("Polar checkout creation failed (defaulting to mock URL):", err.message || err);
     }
     
-    res.status(201).json({ result: { url: checkoutUrl } }); // url is the checkout url that the user will be redirected to. in order to
+    res.status(201).json({ url: checkoutUrl, result: { url: checkoutUrl } });
   } catch (error: any) {
     res.status(400).json({ error: error.message || "Invalid request" });
   }
@@ -120,4 +122,64 @@ export const listPayments = async (req: any, res: Response) => {
       totalPages: Math.ceil(total / limit),
     },
   });
+};
+
+export const confirmPayment = async (req: any, res: Response) => {
+  try {
+    const { bookingId } = req.body;
+    if (!bookingId) {
+      return res.status(400).json({ error: "Booking ID is required" });
+    }
+
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { car: true, payment: true },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    if (booking.userId !== req.user.id && req.user.role !== Role.ADMIN) {
+      return res.status(403).json({ error: "Unauthorized access to this booking" });
+    }
+
+    const days = Math.max(
+      1,
+      Math.ceil(
+        (booking.endDate.getTime() - booking.startDate.getTime()) /
+          (1000 * 60 * 60 * 24),
+      ),
+    );
+    const amount = booking.car.pricePerDay * days;
+
+    const payment = await prisma.payment.upsert({
+      where: { bookingId },
+      create: {
+        bookingId,
+        amount,
+        method: "polar_checkout",
+        status: "SUCCESS",
+      },
+      update: {
+        status: "SUCCESS",
+        amount,
+      },
+    });
+
+    const updatedBooking = await prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: "CONFIRMED" },
+      include: { car: { include: { images: true } }, payment: true },
+    });
+
+    res.json({
+      success: true,
+      booking: updatedBooking,
+      payment,
+      message: "Booking confirmed and payment recorded.",
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to confirm payment" });
+  }
 };

@@ -54,6 +54,13 @@ export const createBooking = async (req: any, res: Response) => {
         endDate,
         status: "PENDING",
       },
+      include: {
+        car: {
+          include: {
+            images: true,
+          },
+        },
+      },
     });
 
     res.status(201).json({ booking });
@@ -74,7 +81,14 @@ export const getMyBookings = async (req: any, res: Response) => {
   const [bookings, total] = await Promise.all([
     prisma.booking.findMany({
       where: { userId: req.user.id },
-      include: { car: true },
+      include: {
+        car: {
+          include: {
+            images: true,
+          },
+        },
+        payment: true,
+      },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * limit,
       take: limit,
@@ -120,11 +134,43 @@ export const cancelBooking = async (req: any, res: Response) => {
   res.json({ booking: updated });
 };
 
-export async function editBookings(req:Request, res:Response) {
-  const {data} =await req.body;
+const updateBookingStatusSchema = z.object({
+  status: z.enum(["PENDING", "CONFIRMED", "CANCELLED"]),
+});
 
-  console.log(data)
-}
+export const updateBookingStatus = async (req: any, res: Response) => {
+  try {
+    const { status } = updateBookingStatusSchema.parse(req.body);
+    const booking = await prisma.booking.findUnique({
+      where: { id: req.params.id as string },
+      include: { car: true },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    if (req.user.role === Role.AGENT && booking.car.ownerId !== req.user.id) {
+      return res
+        .status(403)
+        .json({ error: "You can only manage bookings for your own fleet" });
+    }
+
+    const updated = await prisma.booking.update({
+      where: { id: req.params.id as string },
+      data: { status },
+      include: {
+        car: { include: { images: true } },
+        user: { select: { id: true, name: true, email: true } },
+        payment: true,
+      },
+    });
+
+    res.json({ success: true, booking: updated });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message || "Invalid request" });
+  }
+};
 
 export const getAgentBookings = async (req: any, res: Response) => {
   const query = paginationQuerySchema.parse(req.query);
@@ -143,7 +189,11 @@ export const getAgentBookings = async (req: any, res: Response) => {
     prisma.booking.findMany({
       where,
       include: {
-        car: true,
+        car: {
+          include: {
+            images: true,
+          },
+        },
         user: {
           select: { id: true, name: true, email: true },
         },
