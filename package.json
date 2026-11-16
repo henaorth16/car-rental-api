@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon src/server.ts",
+    "seed": "ts-node prisma/seed.ts",
     "test": "ts-node test_api.ts && ts-node test_payment_integration.ts"
   },
   "keywords": [],

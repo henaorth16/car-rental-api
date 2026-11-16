@@ -1,4 +1,5 @@
 import fetch from "node-fetch";
+import { prisma } from "./src/config/prisma";
 
 const API_URL = "http://localhost:5000";
 let sessionCookies: { admin?: string; user?: string } = {};
@@ -28,7 +29,7 @@ async function testApi() {
     console.error("❌ Register User Failed", regUserJson);
   }
 
-  // Register Admin
+  // Register Admin & Grant ADMIN role
   const regAdmin = await fetch(`${API_URL}/api/auth/sign-up/email`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -37,6 +38,21 @@ async function testApi() {
   const regAdminJson = await regAdmin.json();
   if (regAdmin.ok) {
     sessionCookies.admin = getCookie(regAdmin) || sessionCookies.admin;
+    // Elevate role in database
+    await prisma.user.update({
+      where: { email: adminEmail },
+      data: { role: "ADMIN" },
+    });
+    // Re-login to refresh session cookie with admin role
+    const loginAdminRes = await fetch(`${API_URL}/api/auth/sign-in/email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: adminEmail, password: "password123" }),
+    });
+    if (loginAdminRes.ok) {
+      sessionCookies.admin = getCookie(loginAdminRes) || sessionCookies.admin;
+      console.log("✅ Register & Login Admin OK (Elevated to ADMIN)");
+    }
   }
 
   // 2. Login User
@@ -58,11 +74,11 @@ async function testApi() {
   if (getCars.ok) console.log("✅ Get Cars OK");
   else console.error("❌ Get Cars Failed", await getCars.json());
 
-  // 4. Test Cars Create (Assuming any logged-in user can create a car for now because roleMiddleware is not strictly applied or wait, let's test if it works)
+  // 4. Test Cars Create
   const createCar = await fetch(`${API_URL}/api/cars`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Cookie": sessionCookies.admin || "" },
-    body: JSON.stringify({ brand: "Tesla", model: "Model S", type: "Sedan", pricePerDay: 150.0 }),
+    body: JSON.stringify({ brand: "Tesla", model: "Model S", type: "Sedan", pricePerDay: 150.0, available: true }),
   });
   const carJson = await createCar.json();
   let carId;
@@ -81,8 +97,8 @@ async function testApi() {
       headers: { "Content-Type": "application/json", "Cookie": sessionCookies.user || "" },
       body: JSON.stringify({ 
         carId, 
-        startDate: new Date().toISOString(), 
-        endDate: new Date(Date.now() + 86400000).toISOString() 
+        startDate: new Date(Date.now() + 86400000).toISOString(), 
+        endDate: new Date(Date.now() + 86400000 * 3).toISOString() 
       }),
     });
     const bookJson = await bookRes.json();
@@ -99,8 +115,9 @@ async function testApi() {
       });
       if (payRes.ok) {
         const payJson = await payRes.json();
-        if (payJson.url && payJson.url.includes("checkout")) {
-          console.log("✅ Make Payment OK (Checkout URL generated)");
+        const checkoutUrl = payJson.url || payJson.result?.url;
+        if (checkoutUrl) {
+          console.log(`✅ Make Payment OK (Checkout/Redirect URL: ${checkoutUrl})`);
         } else {
           console.error("❌ Make Payment Failed: No checkout URL returned", payJson);
         }
@@ -110,6 +127,9 @@ async function testApi() {
     } else {
       console.error("❌ Create Booking Failed", bookJson);
     }
+
+    // Cleanup test car
+    await prisma.car.delete({ where: { id: carId } }).catch(() => {});
   }
 
   console.log("\nAPI tests finished.");
