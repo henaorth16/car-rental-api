@@ -25,7 +25,7 @@ export const polarClient = new Polar({
 //@ts-ignore
 export const auth: ReturnType<typeof betterAuth> = betterAuth({
   database: prismaAdapter(prisma, {
-    provider: "sqlite",
+    provider: "postgresql",
   }),
   emailAndPassword: {
     enabled: true,

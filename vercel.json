@@ -1,10 +1,5 @@
 {
   "version": 2,
-  "functions": {
-    "api/index.js": {
-      "includeFiles": "dev.db,uploads/**"
-    }
-  },
   "rewrites": [
     {
       "source": "/(.*)",

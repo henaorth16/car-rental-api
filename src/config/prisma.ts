@@ -1,36 +1,39 @@
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import fs from "fs";
-import path from "path";
+import { PrismaPg } from "@prisma/adapter-pg";
+import pg from "pg";
 
-let dbUrl = process.env.DATABASE_URL || "file:./dev.db";
+export function getDatabaseUrl(): string {
+  const url =
+    process.env.DATABASE_URL ||
+    process.env.HENADB_POSTGRES_URL ||
+    process.env.HENADB_DATABASE_URL_POOLED ||
+    process.env.HENADB_DATABASE_URL ||
+    process.env.HENADB_PRISMA_DATABASE_URL ||
+    "";
 
-if (process.env.VERCEL && dbUrl.startsWith("file:")) {
-  const tmpDbPath = path.join("/tmp", "dev.db");
-  if (!fs.existsSync(tmpDbPath)) {
-    const bundledDbPath = path.join(process.cwd(), "dev.db");
-    const prismaDbPath = path.join(process.cwd(), "prisma", "dev.db");
-    if (fs.existsSync(bundledDbPath)) {
-      try {
-        fs.copyFileSync(bundledDbPath, tmpDbPath);
-      } catch (e) {
-        console.error("Failed to copy bundled dev.db to /tmp:", e);
-      }
-    } else if (fs.existsSync(prismaDbPath)) {
-      try {
-        fs.copyFileSync(prismaDbPath, tmpDbPath);
-      } catch (e) {
-        console.error("Failed to copy prisma/dev.db to /tmp:", e);
-      }
-    }
+  if (url.startsWith("prisma+postgres://")) {
+    return url.replace("prisma+postgres://", "postgres://");
   }
-  dbUrl = `file:${tmpDbPath}`;
+
+  return url;
 }
 
-const adapter = new PrismaBetterSqlite3({
-  url: dbUrl,
-});
+const connectionString = getDatabaseUrl();
+const isLocal =
+  connectionString.includes("localhost") ||
+  connectionString.includes("127.0.0.1");
+
+const pool = new pg.Pool(
+  connectionString
+    ? {
+        connectionString,
+        ssl: isLocal ? false : { rejectUnauthorized: false },
+      }
+    : undefined
+);
+
+const adapter = new PrismaPg(pool);
 
 export const prisma = new PrismaClient({
   adapter,

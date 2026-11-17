@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import { Role } from "@prisma/client";
+import { uploadToCloudinary } from "../../config/cloudinary";
 
 const createCarSchema = z.object({
   brand: z.string().min(1),
@@ -123,8 +124,12 @@ export const createCar = async (req: any, res: Response) => {
     };
 
     if (files && files.length > 0) {
+      const uploadPromises = files.map((f: Express.Multer.File) =>
+        uploadToCloudinary(f.buffer)
+      );
+      const uploaded = await Promise.all(uploadPromises);
       carData.images = {
-        create: files.map((f: Express.Multer.File) => ({ url: f.filename })),
+        create: uploaded.map((u) => ({ url: u.secure_url })),
       };
     }
 
@@ -139,6 +144,7 @@ export const updateCar = async (req: any, res: Response) => {
   try {
     const existingCar = await prisma.car.findUnique({
       where: { id: req.params.id as string },
+      include: { images: true },
     });
     if (!existingCar) {
       return res.status(404).json({ error: "Car not found" });
@@ -155,10 +161,40 @@ export const updateCar = async (req: any, res: Response) => {
       ...payload,
     };
 
+    const newImageUrls: string[] = [];
     if (files && files.length > 0) {
-      carData.images = {
-        create: files.map((f: Express.Multer.File) => ({ url: f.filename })),
-      };
+      const uploadPromises = files.map((f: Express.Multer.File) =>
+        uploadToCloudinary(f.buffer)
+      );
+      const uploaded = await Promise.all(uploadPromises);
+      newImageUrls.push(...uploaded.map((u) => u.secure_url));
+    }
+
+    if (req.body.existingImages !== undefined || newImageUrls.length > 0) {
+      const rawExisting = req.body.existingImages;
+      const retainedUrls: string[] = rawExisting
+        ? Array.isArray(rawExisting)
+          ? rawExisting
+          : [rawExisting]
+        : [];
+
+      if (retainedUrls.length > 0 || newImageUrls.length > 0) {
+        await prisma.carImage.deleteMany({
+          where: {
+            carId: existingCar.id,
+            url: { notIn: retainedUrls },
+          },
+        });
+
+        if (newImageUrls.length > 0) {
+          await prisma.carImage.createMany({
+            data: newImageUrls.map((url) => ({
+              carId: existingCar.id,
+              url,
+            })),
+          });
+        }
+      }
     }
 
     const car = await prisma.car.update({
